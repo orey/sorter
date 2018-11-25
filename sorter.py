@@ -11,6 +11,7 @@ import time
 import os
 import PIL.Image
 import PIL.ExifTags
+import getopt
 
 from datetime import datetime
 from os import listdir
@@ -346,7 +347,9 @@ def printStats():
     print("== Number of dupes: " + str(nb_dupes))
     print("=====================================")
     
-def main(mydir, verbose=VERBOSE):
+def test_cases():
+    mydir = '/home/olivier/olivier'
+    verbose = True
     time1 = time.time()
     sorted, dup = createRoot(ROOT,verbose)
     dict = {}
@@ -358,14 +361,86 @@ def main(mydir, verbose=VERBOSE):
     printStats()
     parseDictForCopies(dict, sorted)
     printStats()
+
+
+def usage():
+    '''
+    Usage function
+    '''
+    print('Sorter program: finds all duplicates in a tree and sorts them' + \
+          ' in a timeline')
+    print('$ python3 sorter.py -e jpg -i /home/toto/rootfolder -o /home/toto/temp')
+    print('Other options:')
+    print('"-v" verbose mode')
+    print('"-h" usage')
+    
+
+def main():
+    try:
+        # Option 't' is a hidden option
+        opts, args = getopt.getopt(sys.argv[1:], "e:i:o:hvt",
+                                   ["extension=", "inputdir=", \
+                                   "outputdir=","help", \
+                                   "verbose", "test"])
+    except getopt.GetoptError:
+        # print help information and exit:
+        usage()
+        sys.exit(2)
+    # init option keys
+    extension = ""
+    inputdir = ""
+    outputdir = ""
+    verbose = False
+    test    = False
+    # parsing options
+    for k, v in opts:
+        if k in ("-e", "--extension"):
+            extension = v
+        if k in ("-i", "--inputdir"):
+            inputdir = v
+        if k in ("-o", "--outputdir"):
+            outputdir = v
+        if k in ("-h", "--help"):
+            usage()
+            sys.exit(0)
+        if k in ("-v", "--verbose"):
+            verbose = True
+        if k in ('-t', '--test'):
+            test = True
+    # Test scenario
+    if test:
+        test_cases()
+        sys.exit(0)
+    if extension == '' or inputdir == '' or outputdir == '':
+        print('Warning: the 3 parameters are required: "-e", "-i" and "-o"')
+        usage()
+        sys.exit(0)
+    if not os.path.exists(inputdir):
+        print('Warning: input dir not existing: ' + inputdir)
+        usage()
+        sys.exit(0)
+    if not os.path.exists(outputdir):
+        print('Warning: output dir not existing: ' + outputdir)
+        try:
+            os.makedirs(outputdir)
+        except OSError as e:
+            print('Error: could not create: ' + outputdir + ". Exiting.")
+            print(e)
+            sys.exit(1)
+    print('No feature implemented')
+    print('extension = ' + extension)
+    print('inputdir = ' + inputdir)
+    print('outputdir = ' + outputdir)
+
+
+
+
+
+
     
     
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        print('Usage:\n$ python3 sorter PATH_to_analyze')
-        sys.exit(1)
-    else:
-        main(sys.argv[1], verbose=True)
+    main()
     #testGetFilesInFolder()
     #compareHash()
     #testGetExif()
