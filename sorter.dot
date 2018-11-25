@@ -1,0 +1,50 @@
+digraph {
+//rankdir="TB";
+main -> createDict
+main -> parseDictForCopies
+main -> printStats
+main -> createRoot
+
+compareHash [color="blue", fontcolor="blue"]
+compareHash -> createDict
+
+parseDictForCopies -> copyPhotoToDateFolder
+copyPhotoToDateFolder -> createFolder
+copyPhotoToDateFolder -> copyFile
+copyPhotoToDateFolder -> analyzePhoto
+
+createDict -> getFilesInFolder
+createDict -> getHash
+createDict -> createFolder
+createDict -> copyFile
+createDict -> createDict
+
+testGetFilesInFolder [color="blue", fontcolor="blue"]
+testGetFilesInFolder -> getFilesInFolder
+getFilesInFolder -> fileOK
+fileOK -> convertBytes
+
+testGetExif [color="blue", fontcolor="blue"]
+testGetExif -> getFileDate
+testGetExif -> getExif
+testGetExif -> createName
+
+testCreateRoot [color="blue", fontcolor="blue"]
+testCreateRoot -> createRoot
+createRoot -> createFolder
+
+testCopyFile [color="blue", fontcolor="blue"]
+testCopyFile -> copyFile
+testCopyFile -> analyzePhoto
+
+analyzePhoto -> getExif
+analyzePhoto -> getFileDate
+
+
+
+//root [label="Rtot\n Jeure", shape="box", color="blue", fontcolor="blue"];
+//cfo [label="Roup CFO\n TBN", shape="box", color="blue", fontcolor="blue"];
+//root -> cfo [arrowhead = "none"];
+//ApplicationService -> BusinessProcess [label="USED_BY_1"];
+//ApplicationInterface -> BusinessRole  [label="USED_BY_2"];
+}
