@@ -21,8 +21,8 @@ from shutil import copyfile
 
 FOLDER = '/home/olivier/.aMule/Incoming/'
 EXT = '.jpg'
-MINSIZE = 30000
-MAXSIZE = 15000000
+MINSIZE = 10000
+MAXSIZE = 500000000
 
 DATETAG1 = 'DateTimeOriginal'
 DATETAG2 = 'DateTimeDigitized'
@@ -44,7 +44,7 @@ nb_dupes   = 0
     
 
 
-def copyFile(src, key, dest):
+def copyFile(src, key, dest, EXT='.jpg'):
     if not os.path.isfile(src):
         print("== Error: " + src + " is not a valid file") 
         return False
@@ -109,7 +109,7 @@ def createFolder(mypath):
         os.makedirs(mypath)
 
 
-def createRoot(mypath, verbose=VERBOSE):
+def createRoot(mypath, verbose=False):
     if not os.path.isdir(mypath):
         print("== Error: " + mypath + " is not a valid folder. Exiting...")
         sys.exit(0)
@@ -185,7 +185,7 @@ def convertBytes(num):
         num /= 1024.0
 
 
-def fileOK(completename):
+def fileOK(completename, EXT='.jpg', verbose=False):
     """
     Filters the files not to generate hash for too small or too big
     files or for files with the wrong extension
@@ -194,22 +194,22 @@ def fileOK(completename):
         return False
     fsize = os.stat(completename).st_size
     if fsize > MAXSIZE:
-        if VERBOSE: print("== File: " + completename + " too big (" + \
+        if verbose: print("== File: " + completename + " too big (" + \
                          convertBytes(fsize) + "). Excluding.")
         return False
     elif fsize < MINSIZE:
-        if VERBOSE: print("== File: " + completename + " too small (" + \
+        if verbose: print("== File: " + completename + " too small (" + \
                          convertBytes(fsize) + "). Excluding.")
         return False
     else:
         return True
 
 
-def getFilesInFolder(mypath):
+def getFilesInFolder(mypath, ext='.jpg', verbose=False):
     """
     Returns two lists, the list of files and the list of subfolders
     All is managed with complete names
-    The list of files is filtered
+    The list of files is filtered with extension
     """
     try:
         glob = listdir(mypath)
@@ -218,7 +218,7 @@ def getFilesInFolder(mypath):
         for f in glob:
             completef = join(mypath,f)
             if isfile(completef):
-                if fileOK(completef):
+                if fileOK(completef, ext, verbose):
                     files.append(completef)
             else:
                 folders.append(completef)
@@ -226,7 +226,6 @@ def getFilesInFolder(mypath):
     except Exception:
         print("== Problem with folder: " + mypath)
         return None, None
-        
 
 
 def testGetFilesInFolder():
@@ -253,7 +252,7 @@ def getHash(myfile, algo=0):
 
 
 
-def createDict(dup, dict, folder, algo=0, verbose=VERBOSE):
+def createDict(dup, dict, folder, ext = '.jpg', algo=0, verbose=False):
     """
     Creates a dict with a hash and the file in order to spot the duplicate files
     even if they don't have the same names
@@ -263,12 +262,11 @@ def createDict(dup, dict, folder, algo=0, verbose=VERBOSE):
     global nb_files
     global nb_dupes
     nb_folders += 1
-    files, folders = getFilesInFolder(folder)
+    files, folders = getFilesInFolder(folder, ext, verbose)
     if files == None:
         return dict;
     if verbose:
-        print("\n== Folder: " + folder)
-        print("== " + str(len(files)) + " files found with matching filter")
+        print("\n== Folder: " + folder + ' - ' + str(len(files)) + " files found")
     dupes = 0
     keys = 0
     for completename in files:
@@ -287,8 +285,8 @@ def createDict(dup, dict, folder, algo=0, verbose=VERBOSE):
             pathkey = join(dup, h)
             if not os.path.isdir(pathkey):
                 createFolder(pathkey)
-                copyFile(completename, "", pathkey)
-            copyFile(temp, datetime.now().strftime("%Y%m%d_%H%M%S_%f_"), pathkey)
+                copyFile(completename, "", pathkey, ext)
+            copyFile(temp, datetime.now().strftime("%Y%m%d_%H%M%S_%f_"), pathkey, ext)
             nb_dupes +=1
         except KeyError:
             nb_files += 1
@@ -296,10 +294,10 @@ def createDict(dup, dict, folder, algo=0, verbose=VERBOSE):
     if len(folders) == 0 or folders == None:
         return dict
     for d in folders:
-        createDict(dup, dict, d, algo)
+        createDict(dup, dict, d, ext, algo, verbose)
     return dict
 
-def copyPhotoToDateFolder(photo, sorted):
+def copyPhotoToDateFolder(photo, sorted, ext):
     mdate = analyzePhoto(photo)
     year = join(sorted, str(mdate.year))
     createFolder(year) #manages the case when it already exists
@@ -307,14 +305,14 @@ def copyPhotoToDateFolder(photo, sorted):
     createFolder(month)
     #day = join(month, str(mdate.day).zfill(2))
     #createFolder(day)
-    copyFile(photo, "",month)
+    copyFile(photo, "",month, ext)
 
 
-def parseDictForCopies(dict, sorted):
+def parseDictForCopies(dict, sorted, ext):
     values = dict.values()
     print("Found " + str(len(values)) + " images")
     for v in values:
-        copyPhotoToDateFolder(v, sorted)
+        copyPhotoToDateFolder(v, sorted, ext)
 
 
 
@@ -331,7 +329,7 @@ def compareHash():
 
     start2 = time.time()
     dict2 = {}
-    createDict(dict2, '/home/olivier/.aMule/Incoming', 1)
+    createDict(dict2, '/home/olivier/.aMule/Incoming', EXT, 1)
     end2 = time.time()
 
     print("\n== Generated " + str(len(dict1)) + " MD5 keys")
@@ -353,13 +351,27 @@ def test_cases():
     time1 = time.time()
     sorted, dup = createRoot(ROOT,verbose)
     dict = {}
-    createDict(dup, dict, mydir, 1, True)
+    createDict(dup, dict, mydir, '.jpg', 1, True)
     time2 = time.time()
     print("=====================================")
     print("== Spent: " + str(time2-time1))
     print("=====================================")
+    parseDictForCopies(dict, sorted, '.jpg')
     printStats()
-    parseDictForCopies(dict, sorted)
+
+    
+def treatment(mytype, inputdir, outputdir, verbose):
+    time1 = time.time()
+    # create the destination tree with a unique folder name
+    msorted, dup = createRoot(outputdir, verbose)
+    mydict = {}
+    createDict(dup, mydict, inputdir, mytype, 1, verbose)
+    time2 = time.time()
+    if verbose:
+        print("=====================================")
+        print("== Spent: " + str(time2-time1))
+        print("=====================================")
+    parseDictForCopies(mydict, msorted, mytype)
     printStats()
 
 
@@ -395,7 +407,7 @@ def main():
     # parsing options
     for k, v in opts:
         if k in ("-e", "--extension"):
-            extension = v
+            extension = '.' + v
         if k in ("-i", "--inputdir"):
             inputdir = v
         if k in ("-o", "--outputdir"):
@@ -427,11 +439,11 @@ def main():
             print('Error: could not create: ' + outputdir + ". Exiting.")
             print(e)
             sys.exit(1)
-    print('No feature implemented')
-    print('extension = ' + extension)
-    print('inputdir = ' + inputdir)
-    print('outputdir = ' + outputdir)
-
+    if verbose:
+        print('extension = ' + extension)
+        print('inputdir = ' + inputdir)
+        print('outputdir = ' + outputdir)
+    treatment(extension, inputdir, outputdir, verbose)
 
 
 

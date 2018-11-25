@@ -40,6 +40,14 @@ testCopyFile -> analyzePhoto
 analyzePhoto -> getExif
 analyzePhoto -> getFileDate
 
+//new
+
+main -> treatment
+main -> usage
+
+treatment -> createRoot
+treatment -> parseDictForCopies
+treatment -> printStats
 
 
 //root [label="Rtot\n Jeure", shape="box", color="blue", fontcolor="blue"];
