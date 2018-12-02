@@ -41,13 +41,30 @@ analyzePhoto -> getExif
 analyzePhoto -> getFileDate
 
 //new
+main [color="red", fontcolor="red"]
+main -> treatment [color="red"]
 
-main -> treatment
-main -> usage
+usage [color="red", fontcolor="red"]
+main -> usage [color="red"]
 
-treatment -> createRoot
-treatment -> parseDictForCopies
-treatment -> printStats
+treatment [color="red", fontcolor="red"]
+treatment -> createRoot [color="red"]
+createRoot [color="red", fontcolor="red"]
+
+treatment -> createDict [color="red"]
+createDict [color="red", fontcolor="red"]
+
+parseDictForCopies [color="red", fontcolor="red"]
+treatment -> parseDictForCopies [color="red"]
+
+printStats [color="red", fontcolor="red"]
+treatment -> printStats [color="red"]
+
+test_hash_perf [color="red", fontcolor="red"]
+test_hash_perf -> create_dict [color="red"]
+
+create_dict
+
 
 
 //root [label="Rtot\n Jeure", shape="box", color="blue", fontcolor="blue"];
