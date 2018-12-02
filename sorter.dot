@@ -63,6 +63,8 @@ treatment -> printStats [color="red"]
 test_hash_perf [color="red", fontcolor="red"]
 test_hash_perf -> create_dict [color="red"]
 
+create_dict -> create_folder
+create_dict -> 
 create_dict
 
 

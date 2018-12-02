@@ -364,6 +364,8 @@ def create_dict(mydict, folder, ext = '.jpg', algo=Algo.MD5, action=Action.BROWS
     return mydict
 
 
+
+
 def copyPhotoToDateFolder(photo, sorted, ext):
     mdate = analyzePhoto(photo)
     year = join(sorted, str(mdate.year))
