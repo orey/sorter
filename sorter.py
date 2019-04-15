@@ -4,6 +4,7 @@
 #-- This utility sorts files and creates a timeline tree
 #-- It is working per type
 #---------------------------------
+# Restored yo an old version before refactoring
 
 import hashlib
 import sys
@@ -17,49 +18,18 @@ from datetime import datetime
 from os import listdir
 from os.path import isfile, join
 from shutil import copyfile
-from enum import Enum
-from PIL import Image
-from PIL.ExifTags import TAGS
-
-class Algo(Enum):
-    MD5  = 0
-    SHA1 = 1
 
 
-class Action(Enum):
-    BROWSE = 0
-    COPY   = 1
-    MOVE   = 2
-
-#-- Stats
-class Stats():
-    nb_folders = 0
-    nb_files   = 0
-    nb_dupes   = 0
-
-STATS = Stats()
-
-JPG = ['jpg', 'JPG', 'jpeg', 'JPEG']
-JPG_DateTime  = 'DateTime'
-JPG_DateTimeOriginal  = 'DateTimeOriginal'
-JPG_DateTimeDigitized = 'DateTimeDigitized'
-JPG_DatePattern = '%Y:%m:%d %H:%M:%S'
-
-FileNamePatterns = {'SamsungFileName' : '%Y%m%d_%H%M%S'}
-
-FileCreationDate = 'FileCreationDate'
-FileLastModif = 'FileLastModification'
-
-ImportanceOrder = ['SamsungFileName','DateTimeOriginal','DateTimeDigitized', \
-                   'FileCreationDate','FileLastModification']
-
-
-
-
+FOLDER = '/home/olivier/.aMule/Incoming/'
 EXT = '.jpg'
 MINSIZE = 10000
 MAXSIZE = 500000000
 
+DATETAG1 = 'DateTimeOriginal'
+DATETAG2 = 'DateTimeDigitized'
+
+DATETIME1 = 'created'
+DATETIME2 = 'lastmodif'
 
 VERBOSE = False
 
@@ -68,86 +38,30 @@ DUP = 'duplicates'
 SORTED = 'sorted'
 ROOT = '/home/olivier/Temp'
 
+#-- Stats
+nb_folders = 0
+nb_files   = 0
+nb_dupes   = 0
+    
 
 
-# OK
-def copy_file_with_key(f, key, dest):
-    if not os.path.isfile(f):
-        print("== Error: " + f + " is not a valid file") 
+def copyFile(src, key, dest, EXT='.jpg'):
+    if not os.path.isfile(src):
+        print("== Error: " + src + " is not a valid file") 
         return False
     if not os.path.isdir(dest):
         print("== Error: " + dest + " is not a valid folder")
+    filename = os.path.basename(src)
+    l = len(filename)
+    temp = key + filename[:l-4] + EXT
+    if os.path.isfile(temp):
+        print("== Error: file " + temp + " already exists. Skipping...")
         return False
-    tfn = join(dest, key + os.path.basename(f))
-    if os.path.isfile(tfn):
-        print("== Warning: file " + tfn + " already exists. Skipping...")
-        return False
-    copyfile(f, tfn)
+    tfn = join(dest, temp)
+    copyfile(src, tfn)
     return True
 
-
-# OK
-def test_copy_file_with_key():
-    copy_file_with_key('/home/olivier/photo.jpg', 'abcde_','/home/olivier/Temp')
-    copy_file_with_key('/home/olivier/toto.pdf', 'abcde_','/home/olivier/Temp')
-
-
-# OK
-def check_jpg_file(f):
-    if not os.path.isfile(f):
-        print("== Error: " + f + " is not a valid file") 
-        return False
-    filename = os.path.basename(f)
-    extension = filename.split('.')[-1]
-    if extension not in JPG:
-        return False
-    return True
-
-
-# OK
-def get_jpg_exif(fn, verbose=False):
-    ret = {}
-    # Check file type
-    if not check_jpg_file(fn):
-        print('Warning: File is not a JPEG file: ' + fn + '. Skipping...')
-        return None
-    i = Image.open(fn)
-    info = i._getexif()
-    if info == None:
-        return None
-    for tag, value in info.items():
-        decoded = TAGS.get(tag, tag)
-        if 'DATE' in str(decoded).upper():
-            d = None
-            try:
-                d = datetime.strptime(value, JPG_DatePattern)
-            except ValueError:
-                if verbose:
-                    print('Unrecognized date pattern: ' + str(value))
-                else:
-                    pass
-            ret[decoded] = d
-    return ret
-
-
-# OK
-def test_photo():
-    mydir = '/home/olivier/Pictures/Test_sorter/'
-    def test_single(name):
-        ret = get_jpg_exif(mydir + name)
-        print(name)
-        print(ret)
-    test_single('20161213_200803.JPG')
-    test_single('test1.jpg')
-    test_single('test2.jpg')
-    test_single('test3.jpeg')
-    test_single('test4.jpg')
-    test_single('test5.jpg')
-    test_single('2016-12-07-13-49-54.png')
-    
-
-# OK
-def analyze_photo(photo, verbose=False):
+def analyzePhoto(photo):
     """
     This method has 3 criterias that are applied in a sequence mode
     1. File name
@@ -155,75 +69,114 @@ def analyze_photo(photo, verbose=False):
     3. File system information
     The oldest date time is considered the best
     """
-    # Will store the dates
-    ld ={}
+    ld =[]
     #-- 1. Search for file name pattern 
     filename = os.path.basename(photo)
-    # Remove extension
-    chain = filename.replace('.' + filename.split('.')[-1], '')
-    for name, pattern in FileNamePatterns.items():
+    if len(filename) > 14:
+        chain = filename[:15]
         try:
-            # TODO Should introduce a regular expression based treatment here
-            d = datetime.strptime(chain, pattern)
-            ld[name] = d
+            d = datetime.strptime(chain, '%Y%m%d_%H%M%S')
+            ld.append(d)
         except ValueError:
             pass
     #-- 2. Analyze photo meta data
-    # TODO : manage specific PNG tags
-    tags = get_jpg_exif(photo, verbose)
-    if tags != None:
-        for k, v in tags.items():
-            ld[k] = v
+    #d = getExif(photo)
+    #if (not d == None) and (not d == {}):
+    #    try:
+    #        ld.append(d[DATETAG1])
+    #        ld.append(d[DATETAG2])
+    #    except KeyError:
+    #        pass
     #-- 3. File system
-    ld[FileCreationDate] = datetime.fromtimestamp(os.path.getctime(photo))
-    ld[FileLastModif] = datetime.fromtimestamp(os.path.getmtime(photo))
-    if verbose:
-        print(ld)
-    for k in ImportanceOrder:
-        if k in ld.keys():
-            if verbose:
-                print('Chosen date: ' + k)
-            return ld[k]
-    raise Exception('No dates found. This case should not happen.')
-            
+    d = getFileDate(photo)
+    ld.append(d[DATETIME1])
+    ld.append(d[DATETIME2])
 
-# OK
-def test_analyze_photo():
-    analyze_photo('/home/olivier/Pictures/Test_sorter/20161213_200803.JPG', True)
+    return min(ld)
 
 
-# OK
-def create_folder(mypath):
+def testCopyFile():
+    p = '/home/olivier/photo.jpg'
+    key = analyzePhoto(p)
+    r = copyFile(p, key, '/home/olivier/Temp')
+    if r:
+        print("OK")
+    else:
+        print("NOT OK")
+
+    
+def createFolder(mypath):
     if not os.path.isdir(mypath):
         os.makedirs(mypath)
 
-# OK
-def create_root(mypath, verbose=False):
+
+def createRoot(mypath, verbose=False):
     if not os.path.isdir(mypath):
         print("== Error: " + mypath + " is not a valid folder. Exiting...")
         sys.exit(0)
     myroot = join(mypath, SORTED + "_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
-    create_folder(myroot)
+    createFolder(myroot)
     if verbose:
         print('Root path created: ' + myroot)
     sorted = join(myroot, SORTED)
-    create_folder(sorted)
+    createFolder(sorted)
     if verbose:
         print('Sorted path created: ' + sorted)
     dup = join(myroot, DUP)
-    create_folder(dup)
+    createFolder(dup)
     if verbose:
         print('Duplicates path created: ' + dup)    
     return sorted, dup
+    
+def testCreateRoot():
+    createRoot(ROOT)
 
 
-# OK
-def test_create_root():
-    create_root('/home/olivier/Temp')
 
+def createName(dtime):
+    return dtime.strftime("%Y%m%d_%H%M%S_%f")
 
-# OK
-def convert_bytes(num):
+def getExif(photo):
+    """
+    Extract photo datetime metadata or None
+    """
+    f = PIL.Image.open(photo)
+    if f._getexif() == None:
+        return None
+    datetags = [DATETAG1,DATETAG2]
+    exif = {}
+    for k, v in f._getexif().items():
+        try:
+            a = PIL.ExifTags.TAGS[k]
+        except KeyError:
+            print("== Unknown tag for photo: " + photo)
+            return None
+        for tag in datetags:
+            if a == tag:
+                #-- v is '2016:09:04 11:06:58'
+                exif[tag] = datetime.strptime(v, "%Y:%m:%d %H:%M:%S")
+    return exif
+    
+def testGetExif():
+    file1 = '/home/olivier/photo.jpg'
+    file2 = '/home/olivier/photo2.jpg'
+    d = getExif(file1)
+    print(d)
+    e = getExif(file2)
+    print(e)
+    a = getFileDate(file1)
+    print(a)
+    print(getFileDate(file2))
+    print("Name of the file would be : " + createName(a['lastmodif']))
+          
+    
+
+def getFileDate(file):
+    return { DATETIME1 : datetime.fromtimestamp(os.path.getctime(file)), \
+             DATETIME2 : datetime.fromtimestamp(os.path.getmtime(file)) }
+    
+
+def convertBytes(num):
     """
     this function will convert bytes to MB.... GB... etc
     """
@@ -233,32 +186,27 @@ def convert_bytes(num):
         num /= 1024.0
 
 
-# OK
-def filter_by_type_and_size(completename, extensionlist, minsize=MINSIZE, maxsize=MAXSIZE, verbose=False):
+def fileOK(completename, EXT='.jpg', verbose=False):
     """
     Filters the files not to generate hash for too small or too big
     files or for files with the wrong extension
     """
-    # Get extension
-    if completename.split('.')[-1] not in extensionlist:
+    if (not completename.endswith(EXT)) and (not completename.endswith(EXT.upper())) :
         return False
     fsize = os.stat(completename).st_size
-    print(completename)
-    print(fsize)
-    if int(fsize) > maxsize:
+    if fsize > MAXSIZE:
         if verbose: print("== File: " + completename + " too big (" + \
-                         convert_bytes(fsize) + "). Excluding.")
+                         convertBytes(fsize) + "). Excluding.")
         return False
-    elif int(fsize) < minsize:
+    elif fsize < MINSIZE:
         if verbose: print("== File: " + completename + " too small (" + \
-                         convert_bytes(fsize) + "). Excluding.")
+                         convertBytes(fsize) + "). Excluding.")
         return False
     else:
         return True
 
 
-# OK
-def get_files_in_folder(mypath, extensionlist, minsize=MINSIZE, maxsize=MAXSIZE, verbose=False):
+def getFilesInFolder(mypath, ext='.jpg', verbose=False):
     """
     Returns two lists, the list of files and the list of subfolders
     All is managed with complete names
@@ -271,7 +219,7 @@ def get_files_in_folder(mypath, extensionlist, minsize=MINSIZE, maxsize=MAXSIZE,
         for f in glob:
             completef = join(mypath,f)
             if isfile(completef):
-                if filter_by_type_and_size(completef, extensionlist, minsize, maxsize, verbose):
+                if fileOK(completef, ext, verbose):
                     files.append(completef)
             else:
                 folders.append(completef)
@@ -281,100 +229,84 @@ def get_files_in_folder(mypath, extensionlist, minsize=MINSIZE, maxsize=MAXSIZE,
         return None, None
 
 
-# OK
-def test_get_files_in_folder():
-    files, folders = get_files_in_folder('/home/olivier/Documents/Bibliothèque', ['pdf', 'PDF'], 10000000, 20000000, True)
+def testGetFilesInFolder():
+    files, folders = getFilesInFolder('/home/olivier/.aMule/Incoming')
     print("== Files:")
     print(files)
     print("== Folders:")
     print(folders)
 
 
-# OK
-def get_hash(myfile, algo=Algo.MD5, verbose=False):
+def getHash(myfile, algo=0):
     """
     Generate hash for several algorithms
     """
     hasher = None
-    if algo == Algo.MD5:
-        hasher = hashlib.md5()
-    elif algo == Algo.SHA1:
+    if algo == 1:
         hasher = hashlib.sha1()
     else:
-        raise ValueError('Unknown algorithm:' + str(algo))
+        hasher = hashlib.md5()
     with open(myfile, 'rb') as afile:
         buf = afile.read()
         hasher.update(buf)
     return hasher.hexdigest()
 
 
-# OK
-def create_dict(mydict, folder, ext = '.jpg', algo=Algo.MD5, action=Action.BROWSE, dup=None, verbose=False):
+
+def createDict(dup, dict, folder, ext = '.jpg', algo=0, verbose=False):
     """
     Creates a dict with a hash and the file in order to spot the duplicate files
-    even if they don't have the same names.
-    This function does a certain action with the files.
+    even if they don't have the same names
     Warning: This function is recursive.
     """
-    STATS.nb_folders += 1
+    global nb_folders
+    global nb_files
+    global nb_dupes
+    nb_folders += 1
     files, folders = getFilesInFolder(folder, ext, verbose)
     if files == None:
-        return mydict;
+        return dict;
     if verbose:
         print("\n== Folder: " + folder + ' - ' + str(len(files)) + " files found")
     dupes = 0
-    # For display in verbose mode only
     keys = 0
     for completename in files:
-        h = get_hash(completename, algo)
+        h = getHash(completename, algo)
         keys +=1
-        if verbose:
-            sys.stdout.write(str(keys) + "|")
-            sys.stdout.flush()
+        sys.stdout.write(str(keys) + "|")
+        sys.stdout.flush()
         try:
-            temp = mydict[h]
-            if verbose:
-                sys.stdout.write("DUP|")
-                sys.stdout.flush()
+            temp = dict[h]
+            #print('\n== Found duplicate of ' + "'" + completename + "'")
+            #print("== '" + temp + "'")
+            sys.stdout.write("DUP|")
+            sys.stdout.flush()
             dupes += 1
-            if action == Action.COPY:
-                # Create folder for dup
-                pathkey = join(dup, h)
-                if not os.path.isdir(pathkey):
-                    create_folder(pathkey)
-                    copy_file_with_key(completename, "", pathkey)
-                else:
-                    copy_file_with_key(temp, datetime.now().strftime("%Y%m%d_%H%M%S_%f_"), pathkey)
-            elif action == Action.MOVE:
-                raise ValueError('Move action not implemented')
-            elif action == Action.BROWSE:
-                pass
-            else:
-                raise ValueError('Unknown action: ' + str(action))
-            STATS.nb_dupes +=1
+            # Create folder for dup
+            pathkey = join(dup, h)
+            if not os.path.isdir(pathkey):
+                createFolder(pathkey)
+                copyFile(completename, "", pathkey, ext)
+            copyFile(temp, datetime.now().strftime("%Y%m%d_%H%M%S_%f_"), pathkey, ext)
+            nb_dupes +=1
         except KeyError:
-            # The file is new
-            STATS.nb_files += 1
-            mydict[h] = completename
-    # Analyze folders
+            nb_files += 1
+            dict[h] = completename
     if len(folders) == 0 or folders == None:
-        return mydict
+        return dict
     for d in folders:
-        createDict(mydict, d, ext, algo, action, dup, verbose)
-    return mydict
-
-
-
+        createDict(dup, dict, d, ext, algo, verbose)
+    return dict
 
 def copyPhotoToDateFolder(photo, sorted, ext):
     mdate = analyzePhoto(photo)
     year = join(sorted, str(mdate.year))
-    create_folder(year) #manages the case when it already exists
+    createFolder(year) #manages the case when it already exists
     month = join(year, str(mdate.month).zfill(2))
-    create_folder(month)
+    createFolder(month)
     #day = join(month, str(mdate.day).zfill(2))
     #createFolder(day)
-    copy_file_with_key(photo, "",month)
+    copyFile(photo, "",month, ext)
 
 
 def parseDictForCopies(dict, sorted, ext):
@@ -387,37 +319,38 @@ def parseDictForCopies(dict, sorted, ext):
 
 
 
-# OK
-def test_hash_perf(verbose=True):
-    testdir = '/home/olivier/.aMule/Incoming'
+
+def compareHash():
+    global VERBOSE
+    VERBOSE = False
     start1 = time.time()
     dict1 = {}
-    create_dict(dict1, testdir, '.pdf', Algo.MD5, Action.BROWSE, None, verbose)
+    createDict(dict1, '/home/olivier/.aMule/Incoming')
     end1 = time.time()
-    print("\n== Generated " + str(len(dict1)) + " MD5 keys")
-    print("== Execution time with md5: " + str(end1 - start1))
 
     start2 = time.time()
     dict2 = {}
-    create_dict(dict2, testdir, '.pdf', Algo.SHA1, Action.BROWSE, None, verbose)
+    createDict(dict2, '/home/olivier/.aMule/Incoming', EXT, 1)
     end2 = time.time()
+
+    print("\n== Generated " + str(len(dict1)) + " MD5 keys")
+    print("== Execution time with md5: " + str(end1 - start1))
     print("\n== Generated " + str(len(dict2)) + " SHA1 keys")
     print("== Execution time with sha1: " + str(end2 - start2))
-    return 'Test complete'
     
 
 def printStats():
     print("=====================================")
-    print("== Number of folders explored: " + str(STATS.nb_folders))
-    print("== Number of files exploredin dict: " + str(STATS.nb_files))
-    print("== Number of dupes: " + str(STATS.nb_dupes))
+    print("== Number of folders explored: " + str(nb_folders))
+    print("== Number of files exploredin dict: " + str(nb_files))
+    print("== Number of dupes: " + str(nb_dupes))
     print("=====================================")
     
 def test_cases():
     mydir = '/home/olivier/olivier'
     verbose = True
     time1 = time.time()
-    sorted, dup = create_root(ROOT,verbose)
+    sorted, dup = createRoot(ROOT,verbose)
     dict = {}
     createDict(dup, dict, mydir, '.jpg', 1, True)
     time2 = time.time()
@@ -431,7 +364,7 @@ def test_cases():
 def treatment(mytype, inputdir, outputdir, verbose):
     time1 = time.time()
     # create the destination tree with a unique folder name
-    msorted, dup = create_root(outputdir, verbose)
+    msorted, dup = createRoot(outputdir, verbose)
     mydict = {}
     createDict(dup, mydict, inputdir, mytype, 1, verbose)
     time2 = time.time()
@@ -442,11 +375,6 @@ def treatment(mytype, inputdir, outputdir, verbose):
     parseDictForCopies(mydict, msorted, mytype)
     printStats()
 
-
-def tests():
-    test_hash_perf(False)
-    test_create_root()
-    
 
 def usage():
     '''
@@ -517,6 +445,11 @@ def main():
         print('inputdir = ' + inputdir)
         print('outputdir = ' + outputdir)
     treatment(extension, inputdir, outputdir, verbose)
+
+
+
+
+
     
     
 if __name__ == "__main__":
@@ -524,9 +457,9 @@ if __name__ == "__main__":
     #testGetFilesInFolder()
     #compareHash()
     #testGetExif()
-    #testcreate_root()
+    #testCreateRoot()
     #testSorted()
-    #testcopy_file()
+    #testCopyFile()
 
 
 
